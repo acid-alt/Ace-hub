@@ -1,5 +1,5 @@
 --[[
-    Acehub - Aimmy Style + Info Tab + Password Update
+    Acehub - Final Version
 ]]
 
 local Players = game:GetService("Players")
@@ -27,6 +27,7 @@ local expand, conns, draws = nil, {}, {}
 local searchText = ""
 local infoSearch = ""
 local walkSpeed = 16
+local speedConn = nil
 
 local UPDATE_URL = "https://raw.githubusercontent.com/acid-alt/Ace-hub/main/acehub.lua"
 local UPDATE_PASSWORD = "malaki@2017"
@@ -212,12 +213,30 @@ sliderKnob.BorderSizePixel = 0
 sliderKnob.Parent = sliderBg
 Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
 
+-- WalkSpeed dauerhaft halten
+local function applyWalkSpeed()
+    if speedConn then
+        speedConn:Disconnect()
+        speedConn = nil
+    end
+    speedConn = RunService.Heartbeat:Connect(function()
+        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if hum and hum.WalkSpeed ~= walkSpeed then
+            hum.WalkSpeed = walkSpeed
+        end
+    end)
+end
+
 local sliding = false
 sliderKnob.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        sliding = true
+    end
 end)
 UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        sliding = false
+    end
 end)
 UIS.InputChanged:Connect(function(input)
     if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then
@@ -226,8 +245,7 @@ UIS.InputChanged:Connect(function(input)
         sliderKnob.Position = UDim2.new(rel, -7, 0.5, -7)
         walkSpeed = math.max(1, math.floor(rel * 100))
         speedLabel.Text = "WalkSpeed: " .. walkSpeed
-        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = walkSpeed end
+        applyWalkSpeed()
     end
 end)
 
@@ -460,14 +478,8 @@ passBox.TextColor3 = Color3.fromRGB(220, 210, 255)
 passBox.PlaceholderColor3 = Color3.fromRGB(120, 110, 150)
 passBox.Font = Enum.Font.Gotham
 passBox.TextSize = 14
-passBox.TextTransparency = 0 -- normal
 passBox.Parent = updatePage
 Instance.new("UICorner", passBox).CornerRadius = UDim.new(0, 8)
-
--- Make it look like password (optional)
-passBox.Focused:Connect(function()
-    passBox.TextTransparency = 0
-end)
 
 local updateStatus = Instance.new("TextLabel")
 updateStatus.Size = UDim2.new(1, -20, 0, 20)
@@ -495,15 +507,12 @@ doUpdateBtn.MouseButton1Click:Connect(function()
     if passBox.Text == UPDATE_PASSWORD then
         updateStatus.Text = "Update wird geladen..."
         updateStatus.TextColor3 = Color3.fromRGB(0, 220, 140)
-        
         task.spawn(function()
             local success, err = pcall(function()
                 local source = game:HttpGet(UPDATE_URL)
-                -- Destroy current UI first
                 if gui then gui:Destroy() end
                 loadstring(source)()
             end)
-            
             if not success then
                 updateStatus.Text = "Fehler: " .. tostring(err)
                 updateStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
@@ -596,9 +605,18 @@ function updateList()
                 nameBtn.MouseButton1Click:Connect(function()
                     selected = plr
                     updateList()
-                    if hear and plr.Character then createExpand(plr.Character) end
+                    -- Sofort umschalten wenn Listening an ist
+                    if hear then
+                        if plr.Character then
+                            createExpand(plr.Character)
+                        else
+                            removeExpand()
+                        end
+                    end
                 end)
-                tpBtn.MouseButton1Click:Connect(function() teleportTo(plr) end)
+                tpBtn.MouseButton1Click:Connect(function()
+                    teleportTo(plr)
+                end)
             end
         end
     end
@@ -681,7 +699,9 @@ hearBtn.MouseButton1Click:Connect(function()
     hear = not hear
     setToggle(hear, hearToggle, hearKnob)
     if hear then
-        if selected and selected.Character then createExpand(selected.Character) end
+        if selected and selected.Character then
+            createExpand(selected.Character)
+        end
     else
         removeExpand()
     end
@@ -716,16 +736,20 @@ end)
 
 LP.CharacterAdded:Connect(function()
     task.wait(1)
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hum.WalkSpeed = walkSpeed end
+    applyWalkSpeed()
 end)
 
 updateList()
 updateInfoList()
+applyWalkSpeed()
 switchTab("Main")
 
 RunService.RenderStepped:Connect(function()
-    if espOn and selected then drawESP() else clearDraw() end
+    if espOn and selected then
+        drawESP()
+    else
+        clearDraw()
+    end
 end)
 
 -- Drag
@@ -738,7 +762,9 @@ titleBar.InputBegan:Connect(function(input)
     end
 end)
 titleBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
 end)
 UIS.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
