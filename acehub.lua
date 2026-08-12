@@ -1,10 +1,11 @@
 --[[
-    Acehub - Final Version (Improved VC Bypass + Jerk Tool)
+    Acehub - Final (Emotes from 7yd7 list + VC Bypass marked Not Working)
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 local LP = Players.LocalPlayer
 local Cam = workspace.CurrentCamera
 local PG = LP:WaitForChild("PlayerGui")
@@ -31,8 +32,16 @@ local walkSpeed = 16
 local speedConn1, speedConn2 = nil, nil
 local bypassConn = nil
 
+-- Emote State
+local emotesData = {}
+local filteredEmotes = {}
+local emoteSearch = ""
+local currentEmoteTrack = nil
+local emotesLoaded = false
+
 local UPDATE_URL = "https://raw.githubusercontent.com/acid-alt/Ace-hub/main/acehub.lua"
 local UPDATE_PASSWORD = "malaki@2017"
+local EMOTE_LIST_URL = "https://raw.githubusercontent.com/7yd7/sniper-Emote/refs/heads/test/EmoteSniper.json"
 
 -- UI
 local gui = Instance.new("ScreenGui")
@@ -177,14 +186,14 @@ end
 
 local espRow, espToggle, espKnob, espBtn = createToggleRow(mainPage, "ESP", 5, true)
 local hearRow, hearToggle, hearKnob, hearBtn = createToggleRow(mainPage, "Listening", 46, false)
-local bypassRow, bypassToggle, bypassKnob, bypassBtn = createToggleRow(mainPage, "VC Bypass", 87, false)
+local bypassRow, bypassToggle, bypassKnob, bypassBtn = createToggleRow(mainPage, "VC Bypass (Not Working)", 87, false)
 
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -10, 0, 18)
 statusLabel.Position = UDim2.new(0, 8, 0, 128)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Bypass: AUS"
-statusLabel.TextColor3 = Color3.fromRGB(255, 70, 70)
+statusLabel.Text = "Bypass: Not Working"
+statusLabel.TextColor3 = Color3.fromRGB(255, 120, 80)
 statusLabel.Font = Enum.Font.GothamBold
 statusLabel.TextSize = 12
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -224,7 +233,6 @@ sliderKnob.BorderSizePixel = 0
 sliderKnob.Parent = sliderBg
 Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
 
--- Aggressive WalkSpeed
 local function forceWalkSpeed()
     local char = LP.Character
     if not char then return end
@@ -295,71 +303,6 @@ local listLayout = Instance.new("UIListLayout")
 listLayout.Padding = UDim.new(0, 4)
 listLayout.Parent = list
 
--- ========== IMPROVED VC BYPASS ==========
-local function setBypassStatus(text, color)
-    statusLabel.Text = text
-    statusLabel.TextColor3 = color
-end
-
-local function startBypass()
-    if bypassConn then
-        bypassConn:Disconnect()
-        bypassConn = nil
-    end
-
-    setBypassStatus("Bypass: Lädt...", Color3.fromRGB(255, 180, 0))
-
-    local attempts = 0
-    local successCount = 0
-
-    bypassConn = RunService.Heartbeat:Connect(function()
-        attempts += 1
-
-        -- Methode 1: VoiceChatService
-        pcall(function()
-            local vcs = game:GetService("VoiceChatService")
-            if vcs and vcs.joinVoice then
-                vcs:joinVoice()
-                successCount += 1
-            end
-        end)
-
-        -- Methode 2: VoiceChatInternal (aggressiver)
-        pcall(function()
-            local vci = game:FindService("VoiceChatInternal") or game:GetService("VoiceChatInternal")
-            if vci then
-                pcall(function()
-                    if vci.Leave then vci:Leave() end
-                end)
-                task.wait(0.05)
-                pcall(function()
-                    if vci.JoinByGroupIdToken then
-                        vci:JoinByGroupIdToken("default", false)
-                    end
-                end)
-                successCount += 1
-            end
-        end)
-
-        -- Status nach ein paar Versuchen aktualisieren
-        if attempts == 20 then
-            if successCount > 0 then
-                setBypassStatus("Bypass: LÄUFT", Color3.fromRGB(0, 255, 120))
-            else
-                setBypassStatus("Bypass: FEHLER", Color3.fromRGB(255, 80, 80))
-            end
-        end
-    end)
-end
-
-local function stopBypass()
-    if bypassConn then
-        bypassConn:Disconnect()
-        bypassConn = nil
-    end
-    setBypassStatus("Bypass: AUS", Color3.fromRGB(255, 70, 70))
-end
-
 -- ========== INFO PAGE ==========
 local infoSearchBox = Instance.new("TextBox")
 infoSearchBox.Size = UDim2.new(1, -10, 0, 30)
@@ -423,17 +366,14 @@ local function showPlayerInfo(plr)
     if not plr then return end
     infoSelected = plr
     infoTitle.Text = plr.DisplayName
-
     local membership = "None"
     pcall(function()
         membership = tostring(plr.MembershipType):gsub("Enum.MembershipType.", "")
     end)
-
     local teamName = plr.Team and plr.Team.Name or "Kein Team"
     local ageDays = plr.AccountAge or 0
     local ageYears = math.floor(ageDays / 365)
     local remainingDays = ageDays % 365
-
     infoContent.Text = string.format(
         "Username: %s\nDisplayName: %s\nUserId: %s\nAccount Age: %s Tage (%s Jahre + %s Tage)\nMembership: %s\nTeam: %s",
         plr.Name, plr.DisplayName, plr.UserId, ageDays, ageYears, remainingDays, membership, teamName
@@ -478,16 +418,275 @@ infoSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ========== EMOTE PAGE ==========
-local comingSoon = Instance.new("TextLabel")
-comingSoon.Size = UDim2.new(1, 0, 1, 0)
-comingSoon.BackgroundTransparency = 1
-comingSoon.Text = "Coming Soon"
-comingSoon.TextColor3 = Color3.fromRGB(150, 130, 190)
-comingSoon.Font = Enum.Font.GothamBold
-comingSoon.TextSize = 20
-comingSoon.Parent = emotePage
+local emoteStatus = Instance.new("TextLabel")
+emoteStatus.Size = UDim2.new(1, -10, 0, 18)
+emoteStatus.Position = UDim2.new(0, 5, 0, 2)
+emoteStatus.BackgroundTransparency = 1
+emoteStatus.Text = "Emotes werden geladen..."
+emoteStatus.TextColor3 = Color3.fromRGB(180, 160, 220)
+emoteStatus.Font = Enum.Font.Gotham
+emoteStatus.TextSize = 12
+emoteStatus.TextXAlignment = Enum.TextXAlignment.Left
+emoteStatus.Parent = emotePage
 
--- ========== TOOLS PAGE (Jerk Tool) ==========
+local emoteSearchBox = Instance.new("TextBox")
+emoteSearchBox.Size = UDim2.new(1, -10, 0, 30)
+emoteSearchBox.Position = UDim2.new(0, 5, 0, 24)
+emoteSearchBox.BackgroundColor3 = Color3.fromRGB(28, 22, 45)
+emoteSearchBox.PlaceholderText = "Suche Emote (z.B. Floss, Dance)..."
+emoteSearchBox.Text = ""
+emoteSearchBox.TextColor3 = Color3.fromRGB(220, 210, 255)
+emoteSearchBox.PlaceholderColor3 = Color3.fromRGB(120, 110, 150)
+emoteSearchBox.Font = Enum.Font.Gotham
+emoteSearchBox.TextSize = 13
+emoteSearchBox.Parent = emotePage
+Instance.new("UICorner", emoteSearchBox).CornerRadius = UDim.new(0, 7)
+
+local stopEmoteBtn = Instance.new("TextButton")
+stopEmoteBtn.Size = UDim2.new(0, 80, 0, 26)
+stopEmoteBtn.Position = UDim2.new(1, -90, 0, 58)
+stopEmoteBtn.BackgroundColor3 = Color3.fromRGB(160, 50, 80)
+stopEmoteBtn.Text = "Stop"
+stopEmoteBtn.TextColor3 = Color3.new(1,1,1)
+stopEmoteBtn.Font = Enum.Font.GothamBold
+stopEmoteBtn.TextSize = 12
+stopEmoteBtn.Parent = emotePage
+Instance.new("UICorner", stopEmoteBtn).CornerRadius = UDim.new(0, 6)
+
+local emoteList = Instance.new("ScrollingFrame")
+emoteList.Size = UDim2.new(1, -10, 1, -95)
+emoteList.Position = UDim2.new(0, 5, 0, 90)
+emoteList.BackgroundColor3 = Color3.fromRGB(22, 17, 38)
+emoteList.BorderSizePixel = 0
+emoteList.ScrollBarThickness = 3
+emoteList.ScrollBarImageColor3 = Color3.fromRGB(130, 80, 255)
+emoteList.Parent = emotePage
+Instance.new("UICorner", emoteList).CornerRadius = UDim.new(0, 8)
+
+local emoteListLayout = Instance.new("UIListLayout")
+emoteListLayout.Padding = UDim.new(0, 3)
+emoteListLayout.Parent = emoteList
+
+local function urlToId(animationId)
+    animationId = tostring(animationId or "")
+    animationId = string.gsub(animationId, "http://www%.roblox%.com/asset/%?id=", "")
+    animationId = string.gsub(animationId, "https://www%.roblox%.com/asset/%?id=", "")
+    animationId = string.gsub(animationId, "rbxassetid://", "")
+    return tonumber(animationId)
+end
+
+local function resolveEmoteToAnimationId(emoteId)
+    local fallbackId = tonumber(emoteId)
+    if not emoteId or emoteId == "" then return fallbackId end
+    local idStr = tostring(emoteId)
+    local objects
+    local ok = false
+    for _, url in ipairs({
+        "rbxassetid://" .. idStr,
+        "http://www.roblox.com/asset/?id=" .. idStr
+    }) do
+        ok, objects = pcall(function()
+            return game:GetObjects(url)
+        end)
+        if ok and type(objects) == "table" and #objects > 0 then
+            break
+        end
+    end
+    if ok and type(objects) == "table" then
+        local function findAnimId(obj)
+            if obj:IsA("Animation") then
+                local animId = urlToId(obj.AnimationId)
+                if animId and animId > 0 then return animId end
+            end
+            for _, child in ipairs(obj:GetChildren()) do
+                local found = findAnimId(child)
+                if found then return found end
+            end
+            return nil
+        end
+        for _, obj in ipairs(objects) do
+            local found = findAnimId(obj)
+            pcall(function() obj:Destroy() end)
+            if found then return found end
+        end
+    end
+    return fallbackId
+end
+
+local function stopCurrentEmote()
+    if currentEmoteTrack then
+        pcall(function()
+            currentEmoteTrack:Stop()
+            currentEmoteTrack:Destroy()
+        end)
+        currentEmoteTrack = nil
+    end
+end
+
+local function playEmoteById(emoteId, emoteName)
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    local animator = hum:FindFirstChildOfClass("Animator") or hum:WaitForChild("Animator", 2)
+    if not animator then return end
+
+    stopCurrentEmote()
+
+    task.spawn(function()
+        local animId = resolveEmoteToAnimationId(emoteId)
+        if not animId then
+            pcall(function()
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Acehub Emote",
+                    Text = "Konnte Animation nicht laden",
+                    Duration = 3
+                })
+            end)
+            return
+        end
+
+        local animation = Instance.new("Animation")
+        animation.AnimationId = "rbxassetid://" .. tostring(animId)
+
+        local ok, track = pcall(function()
+            return animator:LoadAnimation(animation)
+        end)
+
+        if ok and track then
+            track.Priority = Enum.AnimationPriority.Action
+            track.Looped = true
+            track:Play()
+            currentEmoteTrack = track
+            pcall(function()
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Acehub Emote",
+                    Text = "Playing: " .. (emoteName or tostring(emoteId)),
+                    Duration = 2
+                })
+            end)
+        else
+            pcall(function()
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Acehub Emote",
+                    Text = "Play fehlgeschlagen",
+                    Duration = 3
+                })
+            end)
+        end
+    end)
+end
+
+stopEmoteBtn.MouseButton1Click:Connect(function()
+    stopCurrentEmote()
+end)
+
+local function updateEmoteList()
+    for _, c in pairs(emoteList:GetChildren()) do
+        if c:IsA("TextButton") then c:Destroy() end
+    end
+
+    local shown = 0
+    local maxShow = 80 -- Performance: max 80 Ergebnisse anzeigen
+
+    for _, item in ipairs(filteredEmotes) do
+        if shown >= maxShow then break end
+        shown += 1
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -6, 0, 28)
+        btn.BackgroundColor3 = Color3.fromRGB(30, 24, 50)
+        btn.Text = "  " .. (item.name or ("Emote " .. tostring(item.id)))
+        btn.TextColor3 = Color3.fromRGB(220, 210, 255)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 12
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = emoteList
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+        btn.MouseButton1Click:Connect(function()
+            playEmoteById(item.id, item.name)
+        end)
+    end
+
+    task.wait()
+    emoteList.CanvasSize = UDim2.new(0, 0, 0, emoteListLayout.AbsoluteContentSize.Y + 8)
+
+    if emotesLoaded then
+        emoteStatus.Text = string.format("%d Emotes geladen | Zeige %d Ergebnisse", #emotesData, shown)
+    end
+end
+
+local function filterEmotes()
+    filteredEmotes = {}
+    local term = emoteSearch:lower()
+    if term == "" then
+        -- Ohne Suche nur die ersten 50 zeigen
+        for i = 1, math.min(50, #emotesData) do
+            table.insert(filteredEmotes, emotesData[i])
+        end
+    else
+        for _, item in ipairs(emotesData) do
+            local name = (item.name or ""):lower()
+            if name:find(term, 1, true) then
+                table.insert(filteredEmotes, item)
+                if #filteredEmotes >= 80 then break end
+            end
+        end
+    end
+    updateEmoteList()
+end
+
+emoteSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    emoteSearch = emoteSearchBox.Text
+    filterEmotes()
+end)
+
+local function loadEmotes()
+    emoteStatus.Text = "Emotes werden geladen..."
+    task.spawn(function()
+        local success, result = pcall(function()
+            local json = game:HttpGet(EMOTE_LIST_URL)
+            local data = HttpService:JSONDecode(json)
+            return data.data or data
+        end)
+
+        if success and type(result) == "table" then
+            emotesData = {}
+            for _, item in pairs(result) do
+                local id = tonumber(item.id)
+                if id and id > 0 then
+                    table.insert(emotesData, {
+                        id = id,
+                        name = item.name or ("Emote_" .. id)
+                    })
+                end
+            end
+            emotesLoaded = true
+            emoteStatus.Text = #emotesData .. " Emotes geladen – suche nach Namen"
+            filterEmotes()
+        else
+            -- Fallback kleine Liste
+            emotesData = {
+                {id = 3360689775, name = "Salute"},
+                {id = 3360692915, name = "Tilt"},
+                {id = 3576968026, name = "Shrug"},
+                {id = 3360686498, name = "Stadium"},
+                {id = 5915779043, name = "Applaud"},
+                {id = 5917570207, name = "Floss Dance"},
+                {id = 4689362868, name = "Sleep"},
+                {id = 3576717965, name = "Shy"},
+                {id = 3716636630, name = "Monkey"},
+                {id = 4646306583, name = "Curtsy"},
+            }
+            emotesLoaded = true
+            emoteStatus.Text = "Fallback-Liste geladen (Online-Liste fehlgeschlagen)"
+            filterEmotes()
+        end
+    end)
+end
+
+-- ========== TOOLS PAGE ==========
 local jerkCard = Instance.new("Frame")
 jerkCard.Size = UDim2.new(1, -10, 0, 90)
 jerkCard.Position = UDim2.new(0, 5, 0, 5)
@@ -526,7 +725,7 @@ giveBtn.MouseButton1Click:Connect(function()
     local pack = plr:FindFirstChild("Backpack") or plr:WaitForChild("Backpack")
 
     if workspace:FindFirstChild("aaa") then
-        workspace:FindFirstChild("aaa"):Destroy()
+        workspace.aaa:Destroy()
     end
 
     local function getmodel()
@@ -559,12 +758,10 @@ giveBtn.MouseButton1Click:Connect(function()
             animtrack:Play()
             animtrack:AdjustSpeed(0.7)
             animtrack.TimePosition = 0.6
-
             task.wait(0.1)
             while doing and animtrack and animtrack.TimePosition < 0.7 do
                 task.wait(0.05)
             end
-
             if animtrack then
                 animtrack:Stop()
                 animtrack:Destroy()
@@ -583,11 +780,7 @@ giveBtn.MouseButton1Click:Connect(function()
     end)
 
     pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = "Acehub",
-            Text = "Jerk Tool gegeben",
-            Duration = 3
-        })
+        StarterGui:SetCore("SendNotification", {Title = "Acehub", Text = "Jerk Tool gegeben", Duration = 3})
     end)
 end)
 
@@ -810,6 +1003,10 @@ local function switchTab(tab)
     emoteBtn.BackgroundColor3  = tab == "Emote"  and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
     toolsBtn.BackgroundColor3  = tab == "Tools"  and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
     updateBtn.BackgroundColor3 = tab == "Update" and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
+
+    if tab == "Emote" and not emotesLoaded then
+        loadEmotes()
+    end
 end
 
 mainBtn.MouseButton1Click:Connect(function() switchTab("Main") end)
@@ -840,13 +1037,16 @@ hearBtn.MouseButton1Click:Connect(function()
 end)
 
 bypassBtn.MouseButton1Click:Connect(function()
-    bypassOn = not bypassOn
-    setToggle(bypassOn, bypassToggle, bypassKnob)
-    if bypassOn then
-        startBypass()
-    else
-        stopBypass()
-    end
+    -- Not Working – nur Hinweis
+    statusLabel.Text = "Bypass: Not Working (deaktiviert)"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 120, 80)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Acehub",
+            Text = "VC Bypass ist aktuell deaktiviert (Not Working)",
+            Duration = 4
+        })
+    end)
 end)
 
 UIS.InputBegan:Connect(function(input, gp)
@@ -880,6 +1080,7 @@ LP.CharacterAdded:Connect(function()
     task.wait(0.3)
     startWalkSpeedLoop()
     forceWalkSpeed()
+    stopCurrentEmote()
 end)
 
 updateList()
@@ -915,4 +1116,4 @@ UIS.InputChanged:Connect(function(input)
     end
 end)
 
-print("Acehub geladen | Left Ctrl = UI ein/aus")
+print("Acehub geladen | Left Ctrl = UI ein/aus | Emotes laden beim Öffnen des Emote-Tabs")
