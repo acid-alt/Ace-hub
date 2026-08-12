@@ -1,5 +1,5 @@
 --[[
-    Acehub - Aimmy Style + Info Tab
+    Acehub - Aimmy Style + Info Tab + Password Update
 ]]
 
 local Players = game:GetService("Players")
@@ -27,6 +27,9 @@ local expand, conns, draws = nil, {}, {}
 local searchText = ""
 local infoSearch = ""
 local walkSpeed = 16
+
+local UPDATE_URL = "https://raw.githubusercontent.com/acid-alt/Ace-hub/main/acehub.lua"
+local UPDATE_PASSWORD = "malaki@2017"
 
 -- UI
 local gui = Instance.new("ScreenGui")
@@ -83,10 +86,11 @@ local function createSideBtn(icon, y)
     return btn
 end
 
-local mainBtn  = createSideBtn("◉", 12)
-local infoBtn  = createSideBtn("ℹ", 64)
-local emoteBtn = createSideBtn("☺", 116)
-local toolsBtn = createSideBtn("⚒", 168)
+local mainBtn   = createSideBtn("◉", 12)
+local infoBtn   = createSideBtn("ℹ", 64)
+local emoteBtn  = createSideBtn("☺", 116)
+local toolsBtn  = createSideBtn("⚒", 168)
+local updateBtn = createSideBtn("⟳", 220)
 
 -- Content
 local content = Instance.new("Frame")
@@ -118,6 +122,12 @@ toolsPage.Size = UDim2.new(1, 0, 1, 0)
 toolsPage.BackgroundTransparency = 1
 toolsPage.Visible = false
 toolsPage.Parent = content
+
+local updatePage = Instance.new("Frame")
+updatePage.Size = UDim2.new(1, 0, 1, 0)
+updatePage.BackgroundTransparency = 1
+updatePage.Visible = false
+updatePage.Parent = content
 
 -- ========== MAIN PAGE ==========
 local function createToggleRow(parent, text, y, defaultOn)
@@ -373,7 +383,7 @@ infoSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     updateInfoList()
 end)
 
--- ========== EMOTE + TOOLS (gleich wie vorher) ==========
+-- ========== EMOTE + TOOLS ==========
 local comingSoon = Instance.new("TextLabel")
 comingSoon.Size = UDim2.new(1, 0, 1, 0)
 comingSoon.BackgroundTransparency = 1
@@ -428,7 +438,85 @@ giveBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- ========== REST (Functions, Tabs, etc.) ==========
+-- ========== UPDATE PAGE ==========
+local updateTitle = Instance.new("TextLabel")
+updateTitle.Size = UDim2.new(1, -20, 0, 30)
+updateTitle.Position = UDim2.new(0, 10, 0, 20)
+updateTitle.BackgroundTransparency = 1
+updateTitle.Text = "Script Update"
+updateTitle.TextColor3 = Color3.fromRGB(200, 170, 255)
+updateTitle.Font = Enum.Font.GothamBold
+updateTitle.TextSize = 18
+updateTitle.TextXAlignment = Enum.TextXAlignment.Left
+updateTitle.Parent = updatePage
+
+local passBox = Instance.new("TextBox")
+passBox.Size = UDim2.new(1, -20, 0, 36)
+passBox.Position = UDim2.new(0, 10, 0, 70)
+passBox.BackgroundColor3 = Color3.fromRGB(28, 22, 45)
+passBox.PlaceholderText = "Passwort eingeben..."
+passBox.Text = ""
+passBox.TextColor3 = Color3.fromRGB(220, 210, 255)
+passBox.PlaceholderColor3 = Color3.fromRGB(120, 110, 150)
+passBox.Font = Enum.Font.Gotham
+passBox.TextSize = 14
+passBox.TextTransparency = 0 -- normal
+passBox.Parent = updatePage
+Instance.new("UICorner", passBox).CornerRadius = UDim.new(0, 8)
+
+-- Make it look like password (optional)
+passBox.Focused:Connect(function()
+    passBox.TextTransparency = 0
+end)
+
+local updateStatus = Instance.new("TextLabel")
+updateStatus.Size = UDim2.new(1, -20, 0, 20)
+updateStatus.Position = UDim2.new(0, 10, 0, 115)
+updateStatus.BackgroundTransparency = 1
+updateStatus.Text = ""
+updateStatus.TextColor3 = Color3.fromRGB(180, 160, 220)
+updateStatus.Font = Enum.Font.Gotham
+updateStatus.TextSize = 13
+updateStatus.TextXAlignment = Enum.TextXAlignment.Left
+updateStatus.Parent = updatePage
+
+local doUpdateBtn = Instance.new("TextButton")
+doUpdateBtn.Size = UDim2.new(1, -20, 0, 40)
+doUpdateBtn.Position = UDim2.new(0, 10, 0, 150)
+doUpdateBtn.BackgroundColor3 = Color3.fromRGB(110, 60, 210)
+doUpdateBtn.Text = "Script updaten"
+doUpdateBtn.TextColor3 = Color3.new(1,1,1)
+doUpdateBtn.Font = Enum.Font.GothamBold
+doUpdateBtn.TextSize = 15
+doUpdateBtn.Parent = updatePage
+Instance.new("UICorner", doUpdateBtn).CornerRadius = UDim.new(0, 8)
+
+doUpdateBtn.MouseButton1Click:Connect(function()
+    if passBox.Text == UPDATE_PASSWORD then
+        updateStatus.Text = "Update wird geladen..."
+        updateStatus.TextColor3 = Color3.fromRGB(0, 220, 140)
+        
+        task.spawn(function()
+            local success, err = pcall(function()
+                local source = game:HttpGet(UPDATE_URL)
+                -- Destroy current UI first
+                if gui then gui:Destroy() end
+                loadstring(source)()
+            end)
+            
+            if not success then
+                updateStatus.Text = "Fehler: " .. tostring(err)
+                updateStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+            end
+        end)
+    else
+        updateStatus.Text = "Falsches Passwort"
+        updateStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+        passBox.Text = ""
+    end
+end)
+
+-- ========== FUNCTIONS ==========
 local function clearDraw()
     for _, d in pairs(draws) do pcall(function() d:Remove() end) end
     draws = {}
@@ -559,20 +647,24 @@ end
 
 local function switchTab(tab)
     currentTab = tab
-    mainPage.Visible = tab == "Main"
-    infoPage.Visible = tab == "Info"
-    emotePage.Visible = tab == "Emote"
-    toolsPage.Visible = tab == "Tools"
-    mainBtn.BackgroundColor3  = tab == "Main"  and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
-    infoBtn.BackgroundColor3  = tab == "Info"  and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
-    emoteBtn.BackgroundColor3 = tab == "Emote" and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
-    toolsBtn.BackgroundColor3 = tab == "Tools" and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
+    mainPage.Visible   = tab == "Main"
+    infoPage.Visible   = tab == "Info"
+    emotePage.Visible  = tab == "Emote"
+    toolsPage.Visible  = tab == "Tools"
+    updatePage.Visible = tab == "Update"
+
+    mainBtn.BackgroundColor3   = tab == "Main"   and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
+    infoBtn.BackgroundColor3   = tab == "Info"   and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
+    emoteBtn.BackgroundColor3  = tab == "Emote"  and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
+    toolsBtn.BackgroundColor3  = tab == "Tools"  and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
+    updateBtn.BackgroundColor3 = tab == "Update" and Color3.fromRGB(55, 35, 100) or Color3.fromRGB(32, 24, 52)
 end
 
 mainBtn.MouseButton1Click:Connect(function() switchTab("Main") end)
 infoBtn.MouseButton1Click:Connect(function() switchTab("Info") end)
 emoteBtn.MouseButton1Click:Connect(function() switchTab("Emote") end)
 toolsBtn.MouseButton1Click:Connect(function() switchTab("Tools") end)
+updateBtn.MouseButton1Click:Connect(function() switchTab("Update") end)
 
 local function setToggle(on, toggle, knob)
     toggle.BackgroundColor3 = on and Color3.fromRGB(120, 70, 220) or Color3.fromRGB(50, 40, 70)
