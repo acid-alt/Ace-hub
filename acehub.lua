@@ -1,5 +1,5 @@
 --[[
-    Acehub - Final Version (Aggressive WalkSpeed)
+    Acehub - Final Version + Proper Jerk Tool
 ]]
 
 local Players = game:GetService("Players")
@@ -21,14 +21,15 @@ local selected = nil
 local infoSelected = nil
 local hear = false
 local espOn = true
+local bypassOn = false
 local uiVisible = true
 local currentTab = "Main"
 local expand, conns, draws = nil, {}, {}
 local searchText = ""
 local infoSearch = ""
 local walkSpeed = 16
-local speedConn1 = nil
-local speedConn2 = nil
+local speedConn1, speedConn2 = nil, nil
+local bypassConn = nil
 
 local UPDATE_URL = "https://raw.githubusercontent.com/acid-alt/Ace-hub/main/acehub.lua"
 local UPDATE_PASSWORD = "malaki@2017"
@@ -40,14 +41,13 @@ gui.ResetOnSpawn = false
 gui.Parent = PG
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 460, 0, 520)
-main.Position = UDim2.new(0.5, -230, 0.5, -260)
+main.Size = UDim2.new(0, 460, 0, 540)
+main.Position = UDim2.new(0.5, -230, 0.5, -270)
 main.BackgroundColor3 = Color3.fromRGB(18, 14, 28)
 main.BorderSizePixel = 0
 main.Parent = gui
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
 
--- Title Bar
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 36)
 titleBar.BackgroundColor3 = Color3.fromRGB(24, 18, 38)
@@ -66,7 +66,6 @@ title.TextSize = 15
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = titleBar
 
--- Sidebar
 local sidebar = Instance.new("Frame")
 sidebar.Size = UDim2.new(0, 52, 1, -36)
 sidebar.Position = UDim2.new(0, 0, 0, 36)
@@ -94,7 +93,6 @@ local emoteBtn  = createSideBtn("☺", 116)
 local toolsBtn  = createSideBtn("⚒", 168)
 local updateBtn = createSideBtn("⟳", 220)
 
--- Content
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -60, 1, -44)
 content.Position = UDim2.new(0, 56, 0, 40)
@@ -179,10 +177,22 @@ end
 
 local espRow, espToggle, espKnob, espBtn = createToggleRow(mainPage, "ESP", 5, true)
 local hearRow, hearToggle, hearKnob, hearBtn = createToggleRow(mainPage, "Listening", 46, false)
+local bypassRow, bypassToggle, bypassKnob, bypassBtn = createToggleRow(mainPage, "VC Bypass", 87, false)
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -10, 0, 18)
+statusLabel.Position = UDim2.new(0, 8, 0, 128)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Bypass: AUS"
+statusLabel.TextColor3 = Color3.fromRGB(255, 70, 70)
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.TextSize = 12
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainPage
 
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(1, -10, 0, 18)
-speedLabel.Position = UDim2.new(0, 8, 0, 92)
+speedLabel.Position = UDim2.new(0, 8, 0, 150)
 speedLabel.BackgroundTransparency = 1
 speedLabel.Text = "WalkSpeed: 16"
 speedLabel.TextColor3 = Color3.fromRGB(180, 160, 220)
@@ -193,7 +203,7 @@ speedLabel.Parent = mainPage
 
 local sliderBg = Instance.new("Frame")
 sliderBg.Size = UDim2.new(1, -20, 0, 6)
-sliderBg.Position = UDim2.new(0, 10, 0, 115)
+sliderBg.Position = UDim2.new(0, 10, 0, 172)
 sliderBg.BackgroundColor3 = Color3.fromRGB(40, 30, 65)
 sliderBg.BorderSizePixel = 0
 sliderBg.Parent = mainPage
@@ -227,31 +237,24 @@ end
 local function startWalkSpeedLoop()
     if speedConn1 then speedConn1:Disconnect() end
     if speedConn2 then speedConn2:Disconnect() end
-
     speedConn1 = RunService.Heartbeat:Connect(forceWalkSpeed)
     speedConn2 = RunService.RenderStepped:Connect(forceWalkSpeed)
 end
 
 local sliding = false
 sliderKnob.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        sliding = true
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true end
 end)
 UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        sliding = false
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
 end)
 UIS.InputChanged:Connect(function(input)
     if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then
         local absPos = sliderBg.AbsolutePosition.X
         local absSize = sliderBg.AbsoluteSize.X
         local rel = math.clamp((input.Position.X - absPos) / absSize, 0, 1)
-
         sliderFill.Size = UDim2.new(rel, 0, 1, 0)
         sliderKnob.Position = UDim2.new(rel, -7, 0.5, -7)
-
         walkSpeed = math.max(1, math.floor(rel * 100))
         speedLabel.Text = "WalkSpeed: " .. walkSpeed
         forceWalkSpeed()
@@ -262,7 +265,7 @@ startWalkSpeedLoop()
 
 local searchBox = Instance.new("TextBox")
 searchBox.Size = UDim2.new(1, -10, 0, 30)
-searchBox.Position = UDim2.new(0, 5, 0, 135)
+searchBox.Position = UDim2.new(0, 5, 0, 190)
 searchBox.BackgroundColor3 = Color3.fromRGB(28, 22, 45)
 searchBox.PlaceholderText = "Suche Spieler..."
 searchBox.Text = ""
@@ -279,8 +282,8 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 local list = Instance.new("ScrollingFrame")
-list.Size = UDim2.new(1, -10, 1, -175)
-list.Position = UDim2.new(0, 5, 0, 172)
+list.Size = UDim2.new(1, -10, 1, -230)
+list.Position = UDim2.new(0, 5, 0, 228)
 list.BackgroundColor3 = Color3.fromRGB(22, 17, 38)
 list.BorderSizePixel = 0
 list.ScrollBarThickness = 3
@@ -291,6 +294,46 @@ Instance.new("UICorner", list).CornerRadius = UDim.new(0, 8)
 local listLayout = Instance.new("UIListLayout")
 listLayout.Padding = UDim.new(0, 4)
 listLayout.Parent = list
+
+-- ========== VC BYPASS ==========
+local function setBypassStatus(text, color)
+    statusLabel.Text = text
+    statusLabel.TextColor3 = color
+end
+
+local function startBypass()
+    if bypassConn then bypassConn:Disconnect() end
+    setBypassStatus("Bypass: Lädt...", Color3.fromRGB(255, 180, 0))
+
+    local attempts = 0
+    bypassConn = RunService.Heartbeat:Connect(function()
+        attempts += 1
+        pcall(function()
+            local vcs = game:GetService("VoiceChatService")
+            if vcs then
+                pcall(function() vcs:joinVoice() end)
+            end
+            local vci = game:FindService("VoiceChatInternal") or game:GetService("VoiceChatInternal")
+            if vci then
+                pcall(function() vci:Leave() end)
+                task.wait(0.03)
+                pcall(function() vci:JoinByGroupIdToken("default", false) end)
+            end
+        end)
+
+        if attempts == 15 then
+            setBypassStatus("Bypass: LÄUFT", Color3.fromRGB(0, 255, 120))
+        end
+    end)
+end
+
+local function stopBypass()
+    if bypassConn then
+        bypassConn:Disconnect()
+        bypassConn = nil
+    end
+    setBypassStatus("Bypass: AUS", Color3.fromRGB(255, 70, 70))
+end
 
 -- ========== INFO PAGE ==========
 local infoSearchBox = Instance.new("TextBox")
@@ -368,14 +411,7 @@ local function showPlayerInfo(plr)
 
     infoContent.Text = string.format(
         "Username: %s\nDisplayName: %s\nUserId: %s\nAccount Age: %s Tage (%s Jahre + %s Tage)\nMembership: %s\nTeam: %s",
-        plr.Name,
-        plr.DisplayName,
-        plr.UserId,
-        ageDays,
-        ageYears,
-        remainingDays,
-        membership,
-        teamName
+        plr.Name, plr.DisplayName, plr.UserId, ageDays, ageYears, remainingDays, membership, teamName
     )
 end
 
@@ -416,7 +452,7 @@ infoSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     updateInfoList()
 end)
 
--- ========== EMOTE + TOOLS ==========
+-- ========== EMOTE PAGE ==========
 local comingSoon = Instance.new("TextLabel")
 comingSoon.Size = UDim2.new(1, 0, 1, 0)
 comingSoon.BackgroundTransparency = 1
@@ -426,8 +462,9 @@ comingSoon.Font = Enum.Font.GothamBold
 comingSoon.TextSize = 20
 comingSoon.Parent = emotePage
 
+-- ========== TOOLS PAGE (Proper Jerk Tool) ==========
 local jerkCard = Instance.new("Frame")
-jerkCard.Size = UDim2.new(1, -10, 0, 70)
+jerkCard.Size = UDim2.new(1, -10, 0, 90)
 jerkCard.Position = UDim2.new(0, 5, 0, 5)
 jerkCard.BackgroundColor3 = Color3.fromRGB(28, 22, 45)
 jerkCard.BorderSizePixel = 0
@@ -446,28 +483,93 @@ jerkTitle.TextXAlignment = Enum.TextXAlignment.Left
 jerkTitle.Parent = jerkCard
 
 local giveBtn = Instance.new("TextButton")
-giveBtn.Size = UDim2.new(0, 110, 0, 26)
-giveBtn.Position = UDim2.new(0, 12, 0, 36)
+giveBtn.Size = UDim2.new(0, 130, 0, 28)
+giveBtn.Position = UDim2.new(0, 12, 0, 42)
 giveBtn.BackgroundColor3 = Color3.fromRGB(110, 60, 210)
-giveBtn.Text = "Give Tool"
+giveBtn.Text = "Give Jerk Tool"
 giveBtn.TextColor3 = Color3.new(1,1,1)
 giveBtn.Font = Enum.Font.GothamBold
-giveBtn.TextSize = 12
+giveBtn.TextSize = 13
 giveBtn.Parent = jerkCard
 Instance.new("UICorner", giveBtn).CornerRadius = UDim.new(0, 7)
 
 giveBtn.MouseButton1Click:Connect(function()
+    local plr = LP
+    local char = plr.Character or plr.CharacterAdded:Wait()
+    local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid")
+    local anim = hum:FindFirstChildOfClass("Animator") or hum:WaitForChild("Animator")
+    local pack = plr:FindFirstChild("Backpack") or plr:WaitForChild("Backpack")
+
+    -- Alte Animation entfernen
+    if workspace:FindFirstChild("aaa") then
+        workspace:FindFirstChild("aaa"):Destroy()
+    end
+
+    local function getmodel()
+        return hum.RigType == Enum.HumanoidRigType.R15 and "R15" or "R6"
+    end
+
+    local animation = Instance.new("Animation")
+    animation.Name = "aaa"
+    animation.Parent = workspace
+    animation.AnimationId = getmodel() == "R15" and "rbxassetid://698251653" or "rbxassetid://72042024"
+
+    -- Altes Tool entfernen falls vorhanden
+    if pack:FindFirstChild("Jerk") then
+        pack:FindFirstChild("Jerk"):Destroy()
+    end
+    if char:FindFirstChild("Jerk") then
+        char:FindFirstChild("Jerk"):Destroy()
+    end
+
     local tool = Instance.new("Tool")
-    tool.Name = "Jerk Tool"
+    tool.Name = "Jerk"
     tool.RequiresHandle = false
     tool.CanBeDropped = false
-    tool.Parent = LP.Backpack
-    tool.Activated:Connect(function()
-        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-        if hum then pcall(function() hum:PlayEmote("Dance") end) end
+    tool.Parent = pack
+
+    local doing = false
+    local animtrack = nil
+
+    tool.Equipped:Connect(function()
+        doing = true
+        while doing do
+            if not animtrack then
+                animtrack = anim:LoadAnimation(animation)
+            end
+
+            animtrack:Play()
+            animtrack:AdjustSpeed(0.7)
+            animtrack.TimePosition = 0.6
+
+            task.wait(0.1)
+            while doing and animtrack and animtrack.TimePosition < 0.7 do
+                task.wait(0.05)
+            end
+
+            if animtrack then
+                animtrack:Stop()
+                animtrack:Destroy()
+                animtrack = nil
+            end
+        end
     end)
+
+    tool.Unequipped:Connect(function()
+        doing = false
+        if animtrack then
+            animtrack:Stop()
+            animtrack:Destroy()
+            animtrack = nil
+        end
+    end)
+
     pcall(function()
-        StarterGui:SetCore("SendNotification", {Title = "Acehub", Text = "Jerk Tool gegeben", Duration = 3})
+        StarterGui:SetCore("SendNotification", {
+            Title = "Acehub",
+            Text = "Jerk Tool gegeben",
+            Duration = 3
+        })
     end)
 end)
 
@@ -713,11 +815,19 @@ hearBtn.MouseButton1Click:Connect(function()
     hear = not hear
     setToggle(hear, hearToggle, hearKnob)
     if hear then
-        if selected and selected.Character then
-            createExpand(selected.Character)
-        end
+        if selected and selected.Character then createExpand(selected.Character) end
     else
         removeExpand()
+    end
+end)
+
+bypassBtn.MouseButton1Click:Connect(function()
+    bypassOn = not bypassOn
+    setToggle(bypassOn, bypassToggle, bypassKnob)
+    if bypassOn then
+        startBypass()
+    else
+        stopBypass()
     end
 end)
 
