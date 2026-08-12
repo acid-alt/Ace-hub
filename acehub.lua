@@ -1,5 +1,5 @@
 --[[
-    Acehub - Final Version + Proper Jerk Tool
+    Acehub - Final Version (Improved VC Bypass + Jerk Tool)
 ]]
 
 local Players = game:GetService("Players")
@@ -295,34 +295,59 @@ local listLayout = Instance.new("UIListLayout")
 listLayout.Padding = UDim.new(0, 4)
 listLayout.Parent = list
 
--- ========== VC BYPASS ==========
+-- ========== IMPROVED VC BYPASS ==========
 local function setBypassStatus(text, color)
     statusLabel.Text = text
     statusLabel.TextColor3 = color
 end
 
 local function startBypass()
-    if bypassConn then bypassConn:Disconnect() end
+    if bypassConn then
+        bypassConn:Disconnect()
+        bypassConn = nil
+    end
+
     setBypassStatus("Bypass: Lädt...", Color3.fromRGB(255, 180, 0))
 
     local attempts = 0
+    local successCount = 0
+
     bypassConn = RunService.Heartbeat:Connect(function()
         attempts += 1
+
+        -- Methode 1: VoiceChatService
         pcall(function()
             local vcs = game:GetService("VoiceChatService")
-            if vcs then
-                pcall(function() vcs:joinVoice() end)
-            end
-            local vci = game:FindService("VoiceChatInternal") or game:GetService("VoiceChatInternal")
-            if vci then
-                pcall(function() vci:Leave() end)
-                task.wait(0.03)
-                pcall(function() vci:JoinByGroupIdToken("default", false) end)
+            if vcs and vcs.joinVoice then
+                vcs:joinVoice()
+                successCount += 1
             end
         end)
 
-        if attempts == 15 then
-            setBypassStatus("Bypass: LÄUFT", Color3.fromRGB(0, 255, 120))
+        -- Methode 2: VoiceChatInternal (aggressiver)
+        pcall(function()
+            local vci = game:FindService("VoiceChatInternal") or game:GetService("VoiceChatInternal")
+            if vci then
+                pcall(function()
+                    if vci.Leave then vci:Leave() end
+                end)
+                task.wait(0.05)
+                pcall(function()
+                    if vci.JoinByGroupIdToken then
+                        vci:JoinByGroupIdToken("default", false)
+                    end
+                end)
+                successCount += 1
+            end
+        end)
+
+        -- Status nach ein paar Versuchen aktualisieren
+        if attempts == 20 then
+            if successCount > 0 then
+                setBypassStatus("Bypass: LÄUFT", Color3.fromRGB(0, 255, 120))
+            else
+                setBypassStatus("Bypass: FEHLER", Color3.fromRGB(255, 80, 80))
+            end
         end
     end)
 end
@@ -462,7 +487,7 @@ comingSoon.Font = Enum.Font.GothamBold
 comingSoon.TextSize = 20
 comingSoon.Parent = emotePage
 
--- ========== TOOLS PAGE (Proper Jerk Tool) ==========
+-- ========== TOOLS PAGE (Jerk Tool) ==========
 local jerkCard = Instance.new("Frame")
 jerkCard.Size = UDim2.new(1, -10, 0, 90)
 jerkCard.Position = UDim2.new(0, 5, 0, 5)
@@ -500,7 +525,6 @@ giveBtn.MouseButton1Click:Connect(function()
     local anim = hum:FindFirstChildOfClass("Animator") or hum:WaitForChild("Animator")
     local pack = plr:FindFirstChild("Backpack") or plr:WaitForChild("Backpack")
 
-    -- Alte Animation entfernen
     if workspace:FindFirstChild("aaa") then
         workspace:FindFirstChild("aaa"):Destroy()
     end
@@ -514,13 +538,8 @@ giveBtn.MouseButton1Click:Connect(function()
     animation.Parent = workspace
     animation.AnimationId = getmodel() == "R15" and "rbxassetid://698251653" or "rbxassetid://72042024"
 
-    -- Altes Tool entfernen falls vorhanden
-    if pack:FindFirstChild("Jerk") then
-        pack:FindFirstChild("Jerk"):Destroy()
-    end
-    if char:FindFirstChild("Jerk") then
-        char:FindFirstChild("Jerk"):Destroy()
-    end
+    if pack:FindFirstChild("Jerk") then pack.Jerk:Destroy() end
+    if char:FindFirstChild("Jerk") then char.Jerk:Destroy() end
 
     local tool = Instance.new("Tool")
     tool.Name = "Jerk"
@@ -537,7 +556,6 @@ giveBtn.MouseButton1Click:Connect(function()
             if not animtrack then
                 animtrack = anim:LoadAnimation(animation)
             end
-
             animtrack:Play()
             animtrack:AdjustSpeed(0.7)
             animtrack.TimePosition = 0.6
