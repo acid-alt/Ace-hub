@@ -1,5 +1,5 @@
 --[[
-    Acehub - Final Version
+    Acehub - Final Version (Aggressive WalkSpeed)
 ]]
 
 local Players = game:GetService("Players")
@@ -27,7 +27,8 @@ local expand, conns, draws = nil, {}, {}
 local searchText = ""
 local infoSearch = ""
 local walkSpeed = 16
-local speedConn = nil
+local speedConn1 = nil
+local speedConn2 = nil
 
 local UPDATE_URL = "https://raw.githubusercontent.com/acid-alt/Ace-hub/main/acehub.lua"
 local UPDATE_PASSWORD = "malaki@2017"
@@ -213,21 +214,22 @@ sliderKnob.BorderSizePixel = 0
 sliderKnob.Parent = sliderBg
 Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
 
--- WalkSpeed dauerhaft
-local function startWalkSpeedLoop()
-    if speedConn then
-        speedConn:Disconnect()
-        speedConn = nil
+-- Aggressive WalkSpeed
+local function forceWalkSpeed()
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = walkSpeed
     end
-    speedConn = RunService.Heartbeat:Connect(function()
-        local char = LP.Character
-        if char then
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.WalkSpeed ~= walkSpeed then
-                hum.WalkSpeed = walkSpeed
-            end
-        end
-    end)
+end
+
+local function startWalkSpeedLoop()
+    if speedConn1 then speedConn1:Disconnect() end
+    if speedConn2 then speedConn2:Disconnect() end
+
+    speedConn1 = RunService.Heartbeat:Connect(forceWalkSpeed)
+    speedConn2 = RunService.RenderStepped:Connect(forceWalkSpeed)
 end
 
 local sliding = false
@@ -243,16 +245,16 @@ UIS.InputEnded:Connect(function(input)
 end)
 UIS.InputChanged:Connect(function(input)
     if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local rel = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
+        local absPos = sliderBg.AbsolutePosition.X
+        local absSize = sliderBg.AbsoluteSize.X
+        local rel = math.clamp((input.Position.X - absPos) / absSize, 0, 1)
+
         sliderFill.Size = UDim2.new(rel, 0, 1, 0)
         sliderKnob.Position = UDim2.new(rel, -7, 0.5, -7)
+
         walkSpeed = math.max(1, math.floor(rel * 100))
         speedLabel.Text = "WalkSpeed: " .. walkSpeed
-
-        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = walkSpeed
-        end
+        forceWalkSpeed()
     end
 end)
 
@@ -747,8 +749,9 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 LP.CharacterAdded:Connect(function()
-    task.wait(0.5)
+    task.wait(0.3)
     startWalkSpeedLoop()
+    forceWalkSpeed()
 end)
 
 updateList()
